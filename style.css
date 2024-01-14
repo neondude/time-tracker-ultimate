@@ -1,0 +1,25 @@
+#stopwatch {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#time {
+    font-size: 2em;
+    display: block;
+    margin-bottom: 10px;
+}
+
+button {
+    padding: 10px;
+    margin: 5px;
+    font-size: 1em;
+}
+
+#laps {
+    margin-top: 15px;
+}
+
+#laps div {
+    font-size: 1em;
+    padding: 5px;
+}
