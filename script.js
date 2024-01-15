@@ -1,126 +1,188 @@
-let startTime = localStorage.getItem('startTime');
-let interval;
-let laps = JSON.parse(localStorage.getItem('laps')) || [];
-let isRunning = false;
-
-function startTimer() {
-    if (!startTime) {
-        startTime = new Date().getTime();
-        localStorage.setItem('startTime', startTime);
-    }
-    isRunning = true;
-    updateButtonStates();
-    interval = setInterval(updateTimer, 1000);
+function pad(number, width = 2) {
+    const str = number.toString();
+    const padding = '0'.repeat(Math.max(0, width - str.length));
+    return padding + str;
 }
 
-function stopTimer() {
-    clearInterval(interval);
-    isRunning = false;
-    updateButtonStates();
-    interval = null;
-}
-
-function lapTimer() {
-    const currentTime = new Date().getTime();
-    const previousLapTime = laps.length > 0 ? laps[laps.length - 1].endTime : startTime;
-    const lapTime = currentTime - previousLapTime;
-    laps.push({ startTime: previousLapTime, endTime: currentTime, duration: lapTime, id: generateLapId(), note: '' });
-    localStorage.setItem('laps', JSON.stringify(laps));
-    displayLaps();
-}
-function updateLapNote(lapId, note) {
-    const lapIndex = laps.findIndex(lap => lap.id === lapId);
-    if (lapIndex !== -1) {
-        laps[lapIndex].note = note;
-        localStorage.setItem('laps', JSON.stringify(laps));
-    }
-}
-
-function deleteLap(lapId) {
-    laps = laps.filter(lap => lap.id !== lapId);
-    localStorage.setItem('laps', JSON.stringify(laps));
-    displayLaps();
-}
-
-function generateLapId() {
-    return new Date().getTime() + Math.random().toString(36).substr(2, 9);
-}
-
-function resetTimer() {
-    stopTimer();
-    localStorage.removeItem('startTime');
-    localStorage.removeItem('laps');
-    startTime = null;
-    laps = [];
-    document.getElementById('time').textContent = '00:00:00';
-    document.getElementById('laps').innerHTML = '';
-}
-
-function updateTimer() {
-    const currentTime = new Date().getTime();
-    const elapsedTime = currentTime - startTime;
-    displayTime(elapsedTime, 'time');
-}
-
-function displayTime(duration, elementId) {
+function formatTime(duration) {
     const hours = Math.floor(duration / (1000 * 60 * 60));
     const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((duration % (1000 * 60)) / 1000);
-    document.getElementById(elementId).textContent = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    const milliseconds = Math.floor((duration % 1000));
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}:${pad(milliseconds, 3)}`;
 }
 
-function formatLapTime(duration) {
-    const hours = Math.floor(duration / (1000 * 60 * 60));
-    const minutes = Math.floor((duration % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((duration % (1000 * 60)) / 1000);
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+class LapComponent extends HTMLElement {
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+    }
+
+    connectedCallback() {
+        this.render();
+    }
+
+    render() {
+        const lap = {
+            id: this.getAttribute('data-id'),
+            duration: this.getAttribute('data-duration'),
+            note: this.getAttribute('data-note')
+        };
+
+        this.shadowRoot.innerHTML = `
+            <button class="round-button" onclick="stopwatch.deleteLap('${lap.id}')">X</button>
+            Lap: ${formatTime(lap.duration)} 
+            <input type="text" placeholder="Add a note" 
+                   value="${lap.note}" 
+                   oninput="stopwatch.updateLapNote('${lap.id}', this.value)">
+        `;
+    }
+
+    
 }
 
-function displayLaps() {
-    const lapsContainer = document.getElementById('laps');
-    lapsContainer.innerHTML = '';
-    laps.forEach(lap => {
-        const lapElement = document.createElement('div');
-        lapElement.innerHTML = `Lap Duration: ${formatLapTime(lap.duration)} 
-                                <button onclick="deleteLap('${lap.id}')">Delete</button>
-                                <input type="text" placeholder="Add a note" 
-                                       value="${lap.note}" 
-                                       oninput="updateLapNote('${lap.id}', this.value)">
-                                `;
-        lapsContainer.appendChild(lapElement);
-    });
-}
+window.customElements.define('lap-component', LapComponent);
 
-function pad(number) {
-    return number < 10 ? '0' + number : number;
-}
+class Stopwatch {
+    constructor() {
+        this.startTime = 0;
+        this.isRunning = false;
+        this.interval = null;
+        this.laps = [];
 
-function updateButtonStates() {
-    document.getElementById('lap').disabled = !isRunning;
-}
+        this.loadState();
+        this.setupEventListeners();
+        this.updateButtonStates();
 
-document.getElementById('start').addEventListener('click', startTimer);
-document.getElementById('stop').addEventListener('click', stopTimer);
-document.getElementById('lap').addEventListener('click', lapTimer);
-document.getElementById('reset').addEventListener('click', resetTimer);
+        if (this.isRunning) {
+            if (!this.interval) {
+                this.interval = setInterval(() => this.updateTimer(), 10);
+            }
+        }
 
-if (startTime && !interval) {
-    isRunning = true;
-    startTimer();
-} else {
-    isRunning = false;
-}
+        this.displayLaps();
+    }
 
-updateButtonStates();
+    start() {
+        if (!this.startTime) {
+            this.startTime = new Date().getTime();
+        }
+        this.isRunning = true;
+        this.updateButtonStates();
+        this.saveState();
+        if(!this.interval) {
+            this.interval = setInterval(() => this.updateTimer(), 10);
+        }
+    }
 
+    stop() {
+        clearInterval(this.interval);
+        this.isRunning = false;
+        this.updateButtonStates();
+        this.saveState();
+        this.interval = null;
+    }
 
-function checkRefresh() {
-    if (!localStorage.getItem('startTime')) {
-        resetTimer();
-    } else {
-        isRunning = true;
-        updateButtonStates();
-        displayLaps();
+    lap() {
+        const currentTime = new Date().getTime();
+        const previousLapTime = this.laps.length > 0 ? this.laps[this.laps.length - 1].endTime : this.startTime;
+        const lapTime = currentTime - previousLapTime;
+        this.laps.push({ startTime: previousLapTime, endTime: currentTime, duration: lapTime, id: this.generateLapId(), note: '' });
+        this.saveLaps();
+        this.displayLaps();
+    }
+
+    reset() {
+        this.stop();
+        this.startTime = 0;
+        this.laps = [];
+        localStorage.removeItem('startTime');
+        localStorage.removeItem('isRunning');
+        localStorage.removeItem('laps');
+        document.getElementById('time').textContent = '00:00:00';
+        document.getElementById('laps').innerHTML = '';
+    }
+
+    updateTimer() {
+        const currentTime = new Date().getTime();
+        const elapsedTime = currentTime - this.startTime;
+        document.getElementById('time').textContent = formatTime(elapsedTime);
+    }
+
+    deleteLap(lapId) {
+        this.laps = this.laps.filter(lap => lap.id !== lapId);
+        this.saveLaps();
+        this.displayLaps();
+    }
+    
+    updateLapNote(lapId, note) {
+        const lapIndex = this.laps.findIndex(lap => lap.id === lapId);
+        if (lapIndex !== -1) {
+            this.laps[lapIndex].note = note;
+            this.saveLaps();
+        }
+    }
+    
+    displayLaps() {
+        const lapsContainer = document.getElementById('laps');
+        lapsContainer.innerHTML = '';
+        this.laps.forEach(lap => {
+            const lapElement = document.createElement('lap-component');
+            lapElement.setAttribute('data-id', lap.id);
+            lapElement.setAttribute('data-duration', lap.duration);
+            lapElement.setAttribute('data-note', lap.note);
+            lapsContainer.appendChild(lapElement);
+        });
+    }
+    
+    generateLapId() {
+        return new Date().getTime() + Math.random().toString(36).substr(2, 9);
+    }
+    
+    saveState() {
+        localStorage.setItem('startTime', this.startTime.toString());
+        localStorage.setItem('isRunning', this.isRunning.toString());
+    }
+    
+    saveLaps() {
+        localStorage.setItem('laps', JSON.stringify(this.laps));
+    }
+    
+    loadState() {
+        this.startTime = parseInt(localStorage.getItem('startTime'), 10) || 0;
+        this.isRunning = localStorage.getItem('isRunning') === 'true';
+        this.laps = JSON.parse(localStorage.getItem('laps')) || [];
+    }
+    
+    updateButtonStates() {
+        document.getElementById('lap').disabled = !this.isRunning;
+        document.getElementById('start').disabled = this.isRunning;
+        document.getElementById('stop').disabled = !this.isRunning;
+    }
+    
+    setupEventListeners() {
+        document.getElementById('start').addEventListener('click', () => this.start());
+        document.getElementById('stop').addEventListener('click', () => this.stop());
+        document.getElementById('lap').addEventListener('click', () => this.lap());
+        document.getElementById('reset').addEventListener('click', () => this.reset());
+        window.addEventListener('storage', (event) => this.handleStorageChange(event));
+    }
+    
+    handleStorageChange(event) {
+        if (event.key === 'isRunning' || event.key === 'startTime' || event.key === 'laps') {
+            this.loadState();
+            this.updateButtonStates();
+            if (this.isRunning) {
+                if (!this.interval) {
+                    this.interval = setInterval(() => this.updateTimer(), 10);
+                }
+            } else {
+                clearInterval(this.interval);
+                this.interval = null;
+            }
+            this.displayLaps();
+        }
     }
 }
-window.onload = checkRefresh;
+
+const stopwatch = new Stopwatch();

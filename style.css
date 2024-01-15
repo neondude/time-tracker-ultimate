@@ -1,3 +1,7 @@
+body {
+    font-family: 'Rubik Mono One', monospace;
+}
+
 #stopwatch {
     text-align: center;
     margin-top: 20px;
@@ -19,7 +23,14 @@ button {
     margin-top: 15px;
 }
 
-#laps div {
+#laps lap-component {
+    display: block;
     font-size: 1em;
     padding: 5px;
+}
+
+.round-button {
+    border-radius: 50%;
+    border: 2px solid #666;
+    cursor: pointer;
 }
