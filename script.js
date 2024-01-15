@@ -85,7 +85,7 @@ function displayLaps() {
                                 <button onclick="deleteLap('${lap.id}')">Delete</button>
                                 <input type="text" placeholder="Add a note" 
                                        value="${lap.note}" 
-                                       onblur="updateLapNote('${lap.id}', this.value)">
+                                       oninput="updateLapNote('${lap.id}', this.value)">
                                 `;
         lapsContainer.appendChild(lapElement);
     });
