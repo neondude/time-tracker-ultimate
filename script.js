@@ -85,9 +85,12 @@ class Stopwatch {
 
     lap() {
         const currentTime = new Date().getTime();
-        const previousLapTime = this.laps.length > 0 ? this.laps[this.laps.length - 1].endTime : this.startTime;
-        const lapTime = currentTime - previousLapTime;
-        this.laps.push({ startTime: previousLapTime, endTime: currentTime, duration: lapTime, id: this.generateLapId(), note: '' });
+        // const previousLapTime = this.laps.length > 0 ? this.laps[this.laps.length - 1].endTime : this.startTime;
+        const lapTime = currentTime - this.startTime;
+        this.laps.push({ startTime: this.startTime, endTime: currentTime, duration: lapTime, id: this.generateLapId(), note: '' });
+
+        this.startTime = currentTime;
+        this.saveState();
         this.saveLaps();
         this.displayLaps();
     }
@@ -150,6 +153,9 @@ class Stopwatch {
     
     loadState() {
         this.startTime = parseInt(localStorage.getItem('startTime'), 10) || 0;
+        if (!this.startTime) {
+            document.getElementById('time').textContent = '00:00:00';
+        }
         this.isRunning = localStorage.getItem('isRunning') === 'true';
         this.laps = JSON.parse(localStorage.getItem('laps')) || [];
     }
